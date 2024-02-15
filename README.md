@@ -1,0 +1,2 @@
+# SwanBot
+Python discord bot
