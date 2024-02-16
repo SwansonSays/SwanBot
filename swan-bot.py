@@ -13,15 +13,12 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix='$', intents=intents)
 
+#Event handling
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
 
-
-@bot.command()
-async def test(ctx, arg):
-    await ctx.send(f'This bitch said {arg}')
-
+#Command handling
 @bot.command()
 async def echo(ctx, *args):
     arguments = ' '.join(args)
