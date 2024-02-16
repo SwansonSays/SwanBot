@@ -17,16 +17,6 @@ bot = commands.Bot(command_prefix='$', intents=intents)
 async def on_ready():
     print(f'We have logged in as {bot.user}')
 
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-
-    if message.content.startswith('$hello'):
-        await message.channel.send('Hello!')
-
-    await bot.process_commands(message)
-
 
 @bot.command()
 async def test(ctx, arg):
@@ -36,6 +26,10 @@ async def test(ctx, arg):
 async def echo(ctx, *args):
     arguments = ' '.join(args)
     await ctx.send(arguments)
+
+@bot.command()
+async def hello(ctx):
+    await ctx.send(f'Hello {ctx.message.author}!')
 
 
 bot.run(token=TOKEN, log_handler=handler, log_level=logging.DEBUG)
