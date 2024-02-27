@@ -95,8 +95,11 @@ async def on_voice_state_update(member, before, after):
 #echo response
 @bot.command()
 async def echo(ctx, *args):
-    arguments = ' '.join(args)
-    await ctx.send(arguments)
+    if(len(args) > 0):
+        arguments = ' '.join(args)
+        await ctx.send(arguments)
+    else:
+        await ctx.send("Echo must be followed by at least one character.")
 
 #Greats user who send command
 @bot.command()
