@@ -1,6 +1,7 @@
 import os
 import datetime
 import logging
+import random
 
 import discord
 from discord.ext import commands
@@ -162,6 +163,50 @@ async def give(ctx, user: discord.Member, value: int):
 async def give_error(ctx, error):
     if isinstance(error, commands.BadArgument):
         await ctx.send("$give {@user} {value}")
+
+
+@bot.command()
+async def coinflip(ctx, choice: str, amount: int):
+    print("COIN FLIP")
+    coin = [1, 0]
+    if(((choice != "heads") and (choice != "tails")) or (amount < 1)):
+        print("BAD CHOICE")
+        await ctx.send("Please select heads or tails and an amount greater than 0 to wager")
+        await ctx.send("$coinflip {heads || tails} {wager}")
+        return
+    if(random.choice(coin) == 1):
+        print("HEADS")
+        await ctx.send("Flipped coin, Heads!")
+        if(choice == "heads"):
+            await add_balance(ctx.author.id, amount)
+            await ctx.send(f"You Won {amount}!")
+        else:
+            await add_balance(ctx.author.id, (0 - amount))
+            await ctx.send(f"You Lost {amount}!")
+    else:
+        print("TAILS")
+        await ctx.send("Flipped coin, Tails!")
+        if(choice == "tails"):
+            await add_balance(ctx.author.id, amount)
+            await ctx.send(f"You Won {amount}!")
+        else:
+            await add_balance(ctx.author.id, (0 - amount))
+            await ctx.send(f"You Lost {amount}!")
+
+
+@coinflip.error
+async def coinflip_error(ctx, error):
+    print("ERR")
+    print(error)
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("Please select heads or tails and your amount to wager")
+        await ctx.send("$coinflip {heads || tails} {wager}")
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Please select heads or tails and your amount to wager")
+        await ctx.send("$coinflip {heads || tails} {wager}") 
+ 
+    
+    
 
 @bot.command()
 async def addAll(ctx):
