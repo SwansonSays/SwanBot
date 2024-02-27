@@ -115,7 +115,7 @@ async def selfGive(ctx, value):
     if(await is_user(id)):
         if value > 0:
             money = await add_balance(id, value)
-            print(f"{value} given to {ctx.message.author}(id: {ctx.author.id}")
+            print(f"{value} given to {ctx.author}(id: {ctx.author.id}")
             print(f"{ctx.author}'s new balance is {money}")
             await ctx.send(f"{ctx.author}'s new balance is {money}")
         else:
@@ -125,11 +125,16 @@ async def selfGive(ctx, value):
         print(f"ID:{id} not found. Created new user with starting balance")
 
 
-#shows balance of user who sends command. In future be able to check anyones balance
+#Sends balance of message author or tagged user
 @bot.command()
 async def balance(ctx):
-    balance = await get_balance(ctx.author.id)
-    await ctx.send(f"{ctx.author}(id: {ctx.author.id})'s balance is {balance}")
+    if(len(ctx.message.mentions) > 0):
+        balance = await get_balance(ctx.message.mentions[0].id)
+        await ctx.send(f"{ctx.message.mentions[0].name}(id: {ctx.message.mentions[0].id})'s balance is {balance}")
+    else:
+        balance = await get_balance(ctx.author.id)
+        await ctx.send(f"{ctx.author}(id: {ctx.author.id})'s balance is {balance}")
+
 
 #prints shape of context to console
 @bot.command()
