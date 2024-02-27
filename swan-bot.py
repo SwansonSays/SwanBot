@@ -135,6 +135,23 @@ async def balance(ctx):
         balance = await get_balance(ctx.author.id)
         await ctx.send(f"{ctx.author}(id: {ctx.author.id})'s balance is {balance}")
 
+#send user value
+@bot.command()
+async def send(ctx, value):
+    if(len(ctx.message.mentions) >= 0):
+        sender = ctx.author.id
+        recipient = ctx.message.mentions[0].id
+
+        balance = await get_balance(sender)
+        if(balance > value):
+            await add_balance(recipient, value)
+            await add_balance(sender, (0 - value))
+            await ctx.send(f"{ctx.author.name} sent {ctx.message.mentions[0].name} {value}")
+        else:
+            await ctx.send(f"Your balance of {balance} is smaller then the amount({value}) you want to send")
+    else:
+        await ctx.send("Must tag user to send money to")
+
 
 #prints shape of context to console
 @bot.command()
