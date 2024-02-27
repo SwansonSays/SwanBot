@@ -109,8 +109,7 @@ async def hello(ctx):
 
 #Give money to anyone. In future admin use only or helper function only
 @bot.command()
-async def selfGive(ctx, value):
-    value = int(value)
+async def selfGive(ctx, value: int):
     id = ctx.author.id
 
     if(await is_user(id)):
@@ -125,6 +124,11 @@ async def selfGive(ctx, value):
         await add_user(id)
         print(f"ID:{id} not found. Created new user with starting balance")
 
+@selfGive.error
+async def selfGive_error(ctx, error):
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("Command Param must be a integer.")
+
 
 #Sends balance of message author or tagged user
 @bot.command()
@@ -138,7 +142,7 @@ async def balance(ctx):
 
 #send user value
 @bot.command()
-async def give(ctx, user, value):
+async def give(ctx, user: discord.Member, value: int):
     if(len(ctx.message.mentions) >= 0):
         sender = ctx.author.id
         recipient = ctx.message.mentions[0].id
@@ -153,6 +157,11 @@ async def give(ctx, user, value):
             await ctx.send(f"Your balance of {balance} is smaller then the amount({value}) you want to send")
     else:
         await ctx.send("Must tag user to send money to")
+
+@give.error
+async def give_error(ctx, error):
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("$give {@user} {value}")
 
 @bot.command()
 async def addAll(ctx):
