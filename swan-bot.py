@@ -21,6 +21,7 @@ DB_KEY = os.getenv("DB_KEY")
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 
 bot = commands.Bot(command_prefix='$', intents=intents)
 
@@ -37,7 +38,6 @@ except Exception as e:
     
 db = cluster["swanbot"]
 collection = db["money"]
-voice_collection = db["voice_join"]
 
 #Event handling
 @bot.event
@@ -47,54 +47,47 @@ async def on_ready():
 #Greats new user and gives them 1000 coins on server join
 @bot.event
 async def on_member_join(member):
-    channel = bot.get_channel(784337067307302914) #hard coded general channel
-    await channel.send(f"Welcome to the Server {member.name}")
-    
-    myquery = {"_id": member.id}
-    if(collection.count_documents(myquery) == 0):
-        post = {"_id": member.id, "money": 1000}
-        collection.insert_one(post)
+    id = member.id
+    welcome_msg = f"Welcome to the Server {member.name}"
+    return_msg = f"Welcome back {member.name}"
+    if (not await is_user(id)):
         print(f"Your Starting Balance is $1000!")
+        await send_general(welcome_msg)
+    else:
+        await send_general(return_msg)
 
 #Gives coins for every 30 minutes user is in voice call
 @bot.event
 async def on_voice_state_update(member, before, after):
+    id = member.id
     #Puts Join time into DB when VC is joined
     if before.channel == None and after.channel != None:
         join_time = datetime.datetime.now()
-        #print(f'{member} JOINED {before.channel} @ {join_time}')
-        #print(f'Hello {member}!')
 
-        query = {"_id": member.id}
-        if(voice_collection.count_documents(query) == 0):
-            post = {"_id": member.id, "join_time": join_time}
-            voice_collection.insert_one(post)
+        if(await is_user(id)):
+            await set_join_time(id, join_time)
         else:
-            voice_collection.update_one({"_id": member.id}, {"$set":{"join_time": join_time}})
+            await add_user(id)
+            print(f"ID:{id} not found. Created new user with starting balance")
 
     #Pull join_time from DB and calculates money earned for total time in VC
     if before.channel != None and after.channel == None:
         leave_time = datetime.datetime.now()
-        #print(f'{member.name} LEFT {before.channel} @ {leave_time}')
 
-        query = {"_id": member.id}
-        user = voice_collection.find(query)
-        for result in user:
-            join_time = result["join_time"]
+        if(await is_user(id)):
+            join_time = await getJoinTime(id)
 
-        #User earns 50 coins for every half hour they are in VC
-        total_seconds = (leave_time - join_time).total_seconds()
-        money_earned = int(total_seconds / 1800 * 50)
+            #User earns 50 coins for every half hour they are in VC
+            total_seconds = (leave_time - join_time).total_seconds()
+            money_earned = int(total_seconds / 1800 * 50)   
 
-        user = collection.find(query)
-        for result in user:
-            money = int(result["money"])
+            balance = await add_balance(id, money_earned)
 
-        money = money + money_earned
-        collection.update_one({"_id": member.id}, {"$set":{"money": money}})
-
-        channel = bot.get_channel(784337067307302914) #hard coded general channel
-        await channel.send(f"{member.name} earned {money_earned} coins for beining in {before.channel}.\nYour new balance is {money}.")
+            msg = f"{member.name} earned {money_earned} coins for beining in {before.channel}.\nYour new balance is {balance}."
+            await send_general(msg)
+        else:
+            await add_user(id)
+            print(f"ID:{id} not found. Created new user with starting balance")
 
 
 
@@ -103,8 +96,11 @@ async def on_voice_state_update(member, before, after):
 #echo response
 @bot.command()
 async def echo(ctx, *args):
-    arguments = ' '.join(args)
-    await ctx.send(arguments)
+    if(len(args) > 0):
+        arguments = ' '.join(args)
+        await ctx.send(arguments)
+    else:
+        await ctx.send("Echo must be followed by at least one character.")
 
 #Greats user who send command
 @bot.command()
@@ -115,35 +111,57 @@ async def hello(ctx):
 @bot.command()
 async def selfGive(ctx, value):
     value = int(value)
-    myquery = {"_id": ctx.author.id}
+    id = ctx.author.id
 
-    if(collection.count_documents(myquery) == 0):
+    if(await is_user(id)):
         if value > 0:
-            post = {"_id": ctx.author.id, "money": value}
-            collection.insert_one(post)
-            print(f"{value} given to {ctx.author}(id: {ctx.author.id})")
-            print(f"{ctx.author}'s new balance is {money}")
-    else :
-        print("Not Equal 0")
-        if value > 0:
-            query = {"_id": ctx.author.id}
-            user = collection.find(query)
-            for result in user:
-                money = int(result["money"])
-            money = money + value
-            collection.update_one({"_id": ctx.author.id}, {"$set":{"money": money}})
-            print(f"{value} given to {ctx.message.author}(id: {ctx.author.id}")
+            money = await add_balance(id, value)
+            print(f"{value} given to {ctx.author}(id: {ctx.author.id}")
             print(f"{ctx.author}'s new balance is {money}")
             await ctx.send(f"{ctx.author}'s new balance is {money}")
+        else:
+            await ctx.send(f"{value} is not a valid value. Please try again")
+    else :
+        await add_user(id)
+        print(f"ID:{id} not found. Created new user with starting balance")
 
-#shows balance of user who sends command. In future be able to check anyones balance
+
+#Sends balance of message author or tagged user
 @bot.command()
 async def balance(ctx):
-    query = {"_id": ctx.author.id}
-    user = collection.find(query)
-    for result in user:
-        money = result["money"]
-    await ctx.send(f"{ctx.author}(id: {ctx.author.id})'s balance is {money}")
+    if(len(ctx.message.mentions) > 0):
+        balance = await get_balance(ctx.message.mentions[0].id)
+        await ctx.send(f"{ctx.message.mentions[0].name}(id: {ctx.message.mentions[0].id})'s balance is {balance}")
+    else:
+        balance = await get_balance(ctx.author.id)
+        await ctx.send(f"{ctx.author}(id: {ctx.author.id})'s balance is {balance}")
+
+#send user value
+@bot.command()
+async def give(ctx, user, value):
+    if(len(ctx.message.mentions) >= 0):
+        sender = ctx.author.id
+        recipient = ctx.message.mentions[0].id
+        value = int(value)
+
+        balance = await get_balance(sender)
+        if(balance > value):
+            await add_balance(recipient, value)
+            await add_balance(sender, (0 - value))
+            await ctx.send(f"{ctx.author.name} sent {ctx.message.mentions[0].name} {value}")
+        else:
+            await ctx.send(f"Your balance of {balance} is smaller then the amount({value}) you want to send")
+    else:
+        await ctx.send("Must tag user to send money to")
+
+@bot.command()
+async def addAll(ctx):
+    for guild in bot.guilds:
+        for member in guild.members:
+            if(not await is_user(member.id)):
+                await add_user(member.id)
+                print(f"{member}(id:{member.id}) was added to user list")
+
 
 #prints shape of context to console
 @bot.command()
@@ -151,10 +169,59 @@ async def test(ctx):
     print(vars(ctx))
 
 
+#DB API
+
+async def add_balance(id, value):
+    balance = await get_balance(id)
+    new_balance = balance + value
+    await set_balance(id, new_balance)
+    return new_balance
+
+async def get_balance(id):
+    user = await get_user(id)
+    for result in user:
+        balance = result["money"]
+    return balance
+
+async def set_balance(id, balance):
+    collection.update_one({"_id": id}, {"$set":{"money": balance}})
+
+
+async def add_user(id):
+    myquery = {"_id": id}
+    if(not await is_user(id)):
+        post = {"_id": id, "money": 1000, "join_time": 0}
+        collection.insert_one(post)
+        return True
+    print(f"{id} is already in database")
+    return False
+
+async def is_user(id):
+    query = {"_id": id}
+    if(collection.count_documents(query) == 0):
+        return False
+    return True
+
+async def get_user(id):
+    query = {"_id": id}
+    user = collection.find(query)
+    return user
+
+async def set_join_time(id, join_time):
+    collection.update_one({"_id": id}, {"$set":{"join_time": join_time}})
+
+async def getJoinTime(id):
+    user = await get_user(id)
+    for result in user:
+        join_time = result["join_time"]
+    return join_time
 
 
 
-
+# Helper Funcs
+async def send_general(msg):
+    channel = bot.get_channel(784337067307302914) #hard coded general channel
+    await channel.send(msg)
 
 
 
