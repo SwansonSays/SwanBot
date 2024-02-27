@@ -21,6 +21,7 @@ DB_KEY = os.getenv("DB_KEY")
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 
 bot = commands.Bot(command_prefix='$', intents=intents)
 
@@ -137,10 +138,11 @@ async def balance(ctx):
 
 #send user value
 @bot.command()
-async def send(ctx, value):
+async def give(ctx, user, value):
     if(len(ctx.message.mentions) >= 0):
         sender = ctx.author.id
         recipient = ctx.message.mentions[0].id
+        value = int(value)
 
         balance = await get_balance(sender)
         if(balance > value):
@@ -151,6 +153,14 @@ async def send(ctx, value):
             await ctx.send(f"Your balance of {balance} is smaller then the amount({value}) you want to send")
     else:
         await ctx.send("Must tag user to send money to")
+
+@bot.command()
+async def addAll(ctx):
+    for guild in bot.guilds:
+        for member in guild.members:
+            if(not await is_user(member.id)):
+                await add_user(member.id)
+                print(f"{member}(id:{member.id}) was added to user list")
 
 
 #prints shape of context to console
