@@ -13,9 +13,6 @@ import settings
 logger = settings.logging.getLogger("bot")
 
 def run():
-    #TODO figure out how to send err's to console but debug statements to log
-    #handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
-
     intents = discord.Intents.default()
     intents.message_content = True
     intents.members = True
@@ -26,10 +23,10 @@ def run():
 
 
     class TheButton(discord.ui.View):
-        def __init__(self, *, timeout = 10, risk):
+        def __init__(self, *, timeout = 10, wager):
             super().__init__(timeout=timeout)
             self.clicked = 0
-            self.risk = risk
+            self.wager = wager
             self.explosion = 5
             self.last_clicked = None
 
@@ -67,6 +64,9 @@ def run():
     #Greats new user and gives them 1000 coins on server join
     @bot.event
     async def on_member_join(member):
+        '''
+        Adds new users to database with starting balance and greets them
+        '''
         id = member.id
         welcome_msg = f"Welcome to the Server {member.name}"
         return_msg = f"Welcome back {member.name}"
@@ -81,6 +81,9 @@ def run():
     #Gives coins for every 30 minutes user is in voice call
     @bot.event
     async def on_voice_state_update(member, before, after):
+        '''
+        Awards money to user for time spent in voice call
+        '''
         id = member.id
         #Puts Join time into DB when VC is joined
         if before.channel == None and after.channel != None:
@@ -120,6 +123,11 @@ def run():
     #echo response
     @bot.command()
     async def echo(ctx, *args):
+        '''
+        Bot responds with whatever follows echo
+        Args:
+            args: Message to be echo'd
+        '''
         if(len(args) > 0):
             arguments = ' '.join(args)
             await ctx.send(arguments)
@@ -127,9 +135,11 @@ def run():
             await ctx.send("Echo must be followed by at least one character.")
 
 
-    #Greats user who send command
     @bot.command()
     async def hello(ctx):
+        '''
+        Bot greets user
+        '''
         await ctx.send(f'Hello {ctx.author.mention}!')
 
 
@@ -156,6 +166,9 @@ def run():
     #Sends balance of message author or tagged user
     @bot.command()
     async def balance(ctx):
+        '''
+        Check your own balance or balance of tagged user
+        '''
         if(len(ctx.message.mentions) > 0):
             balance = await db.get_balance(ctx.message.mentions[0].id)
             await ctx.send(f"{ctx.message.mentions[0].name}(id: {ctx.message.mentions[0].id})'s balance is {balance}")
@@ -167,6 +180,12 @@ def run():
     #send user value
     @bot.command()
     async def give(ctx, user: discord.Member, value: int):
+        '''
+        Send a amount of money from your balance to another user
+        Args:
+            user (discord.Member): User to send money to
+            value (int): amount to send
+        '''
         if(len(ctx.message.mentions) >= 0):
             sender = ctx.author.id
             recipient = ctx.message.mentions[0].id
@@ -186,36 +205,39 @@ def run():
     @bot.command(
         aliases=['coin', 'flip', 'cf']
     )
-    async def coinflip(ctx, choice: str, amount: int):
-        print("COIN FLIP")
-        coin = [1, 0]
-        if(((choice != "heads") and (choice != "tails")) or (amount < 1)):
-            print("BAD CHOICE")
-            await ctx.send("Please select heads or tails and an amount greater than 0 to wager")
-            await ctx.send("$coinflip {heads || tails} {wager}")
+    async def coinflip(ctx, choice: str, wager: int):
+        '''
+        Flip a coin and if it lands on what your 
+        choice recieve double your wager
+        Args:
+            choice (str): Choice of heads or tails.
+            wager (int): Amount to wager.
+        '''
+        id = ctx.author.id
+        choice = choice.lower()
+
+        if(((choice != "heads") and (choice != "tails")) or (wager < 1)):
+            await ctx.reply("*Please select heads or tails and an amount greater than 0 to wager")
+            await ctx.reply("*$coinflip {heads | tails} {wager}")
             return
-        if(random.choice(coin) == 1):
-            print("HEADS")
-            await ctx.send("Flipped coin, Heads!")
-            if(choice == "heads"):
-                await db.add_balance(ctx.author.id, amount)
-                await ctx.send(f"You Won {amount}!")
-            else:
-                await db.add_balance(ctx.author.id, (0 - amount))
-                await ctx.send(f"You Lost {amount}!")
+
+        if not await check_balance(id, wager):
+            await ctx.reply("You do not have the balance required to wager that amount.")
+            return
+        
+        await collect_wager(id, wager)
+
+        coin = ["Heads", "Tails"]
+        result = random.choice(coin)
+        if(result == "Heads" and choice == "heads") or (result == "Tails" and choice == "tails"):
+            await ctx.reply(f"Flipped coin, {result}!\nYou Won {wager}! Your balance is now {await pay_winner(id, wager, 2)}")
         else:
-            print("TAILS")
-            await ctx.send("Flipped coin, Tails!")
-            if(choice == "tails"):
-                await db.add_balance(ctx.author.id, amount)
-                await ctx.send(f"You Won {amount}!")
-            else:
-                await db.add_balance(ctx.author.id, (0 - amount))
-                await ctx.send(f"You Lost {amount}!")
+            await ctx.reply(f"Flipped coin, {result}!\nYou Lost {wager}! Your balance is now {await db.get_balance(id)}")
+
 
     @bot.command()
     async def button(ctx,value):
-        view = TheButton(risk=value)
+        view = TheButton(wager=value)
         msg = await ctx.send("The Button Has Commenced!", view=view)
 
         timed_out = await view.wait()
@@ -232,6 +254,12 @@ def run():
 
     @bot.command()
     async def roll(ctx, amount: int, faces: int):
+        '''
+        Roll a specified amount of dice with a specified amount of faces
+        Args:
+            amount (int): Amount of dice to roll
+            faces (int): Amount of faces on each die
+        '''
         result = []
         for x in range(amount):
             result.append(random.randint(1, faces))
@@ -262,21 +290,27 @@ def run():
         "untill someone rolls a 1. The player that did not roll the one wins the other players wager",
         brief="| Gambling Dice Game",
     )
-    async def devildice(ctx, bet: int = commands.parameter(description="The amount to wager.")):
+    async def devildice(ctx, wager: int):
+        '''
+        Dice game where players roll increasingly smaller die untill somone rolls a 1 and loses
+        Args:
+            wager (int): Amount to wager.
+        '''
+        if not await check_balance(ctx.author.id, wager):
+            await ctx.reply("You do not have the balance required to wager that amount.")
+            return
+        
         await ctx.send(f"{ctx.author.mention} has started a game of Devil Dice. Enter 'join' or 'j' to join.")
 
-        def check(m):
-            return m.author != ctx.author and m.channel == ctx.channel
+        async def check(m):
+            return m.author != ctx.author and m.channel == ctx.channel and await check_balance(m.author, wager)
         
         def turn_check(m):
             if(m.author != player or m.channel != ctx.channel):
-                print("Wrong other or channel")
                 return False
             elif(m.author == player and m.content.lower() != "roll"):
-                print("Right author wrong cmd")
                 return False
             else:
-                print("lets go")
                 return True
 
 
@@ -289,6 +323,8 @@ def run():
         if response.content.lower() not in ("join", "j"):
             return
         
+        await collect_wager(ctx.author.id, wager)
+        await collect_wager(response.author.id, wager)
         game_running = True
         die = 8
         
@@ -308,18 +344,12 @@ def run():
             die = random.randint(1, die)
             await ctx.send(f"{player.mention} rolled a {die}.")
             if(die == 1):
-                loser = player
                 winner = next(players)
-                await ctx.send(f"{winner.mention} you win {bet}")
-                await db.add_balance(winner.id, bet)
-                await db.add_balance(loser.id, (0 - bet))
+                await ctx.send(f"{winner.mention} you win {wager}.\nYour balance is {await pay_winner(winner.id, wager * 2)}")
                 return
 
             
             player = next(players)
-
-
-
 
 
     @bot.command(
@@ -364,12 +394,9 @@ def run():
     async def coinflip_error(ctx, error):
         print("ERR")
         print(error)
-        if isinstance(error, commands.BadArgument):
-            await ctx.send("Please select heads or tails and your amount to wager")
-            await ctx.send("$coinflip {heads || tails} {wager}")
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("Please select heads or tails and your amount to wager")
-            await ctx.send("$coinflip {heads || tails} {wager}") 
+        if isinstance(error, commands.BadArgument) or isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send("!Please select heads or tails and your amount to wager")
+            await ctx.send("!$coinflip {heads || tails} {wager}") 
 
 
     @roll.error
@@ -386,6 +413,37 @@ def run():
     async def send_general(msg):
         channel = bot.get_channel(784337067307302914) #hard coded general channel
         await channel.send(msg)
+
+    async def check_balance(id, wager: int) -> bool:
+        '''
+        Confirmers player with id has enough balance to wager
+        Args:
+            id: User id
+            wager (int): Amount to wager.
+        Returns:
+            bool: Whether user has enough balance or not
+        '''
+        return await db.get_balance(id) > wager
+    
+    async def collect_wager(id, wager: int) -> None:
+        '''
+        Collects wager from player. Must check that player has enough balance first.
+        Args:
+            id: User id
+            wager (int): Amount to take from balance
+        '''
+        await db.add_balance(id, 0 - wager)
+
+    async def pay_winner(id, wager: int, multiplier: int) -> int:
+        '''
+        Add multiplier * wager to players balance
+        Args:
+            id: User id
+            wager (int): Amount to pay out
+            multiplier (int): Amount to multiply wager by
+        Returns: New balance of winner
+        '''       
+        return await db.add_balance(id, wager * multiplier)
 
 
 
