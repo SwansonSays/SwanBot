@@ -10,14 +10,12 @@ from discord.ext import commands
 
 from dotenv import load_dotenv
 
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
+from database import DataBase
 
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-DB_ID = os.getenv("DB_ID")
-DB_KEY = os.getenv("DB_KEY")
+
 
 #TODO figure out how to send err's to console but debug statements to log
 #handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
@@ -26,21 +24,10 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
+db = DataBase()
+
 bot = commands.Bot(command_prefix='$', intents=intents)
 
-#Connect to DB
-uri = f"mongodb+srv://{DB_ID}:{DB_KEY}@cluster0.nvkklff.mongodb.net/?retryWrites=true&w=majority"
-cluster = MongoClient(uri, server_api=ServerApi('1'))
-# Send a ping to confirm a successful connection
-try:
-    cluster.admin.command('ping')
-    print("Pinged your deployment. You successfully connected to MongoDB!")
-except Exception as e:
-    print(e)
-
-    
-db = cluster["swanbot"]
-collection = db["money"]
 
 class TheButton(discord.ui.View):
     def __init__(self, *, timeout = 10, risk):
@@ -86,8 +73,8 @@ async def on_member_join(member):
     id = member.id
     welcome_msg = f"Welcome to the Server {member.name}"
     return_msg = f"Welcome back {member.name}"
-    if (not await is_user(id)):
-        await add_user(id)
+    if (not await db.is_user(id)):
+        await db.add_user(id)
         print(f"Your Starting Balance is $1000!")
         await send_general(welcome_msg)
     else:
@@ -102,29 +89,29 @@ async def on_voice_state_update(member, before, after):
     if before.channel == None and after.channel != None:
         join_time = datetime.datetime.now()
 
-        if(await is_user(id)):
-            await set_join_time(id, join_time)
+        if(await db.is_user(id)):
+            await db.set_join_time(id, join_time)
         else:
-            await add_user(id)
+            await db.add_user(id)
             print(f"ID:{id} not found. Created new user with starting balance")
 
     #Pull join_time from DB and calculates money earned for total time in VC
     if before.channel != None and after.channel == None:
         leave_time = datetime.datetime.now()
 
-        if(await is_user(id)):
-            join_time = await getJoinTime(id)
+        if(await db.is_user(id)):
+            join_time = await db.getJoinTime(id)
 
             #User earns 50 coins for every half hour they are in VC
             total_seconds = (leave_time - join_time).total_seconds()
             money_earned = int(total_seconds / 1800 * 50)   
 
-            balance = await add_balance(id, money_earned)
+            balance = await db.add_balance(id, money_earned)
 
             msg = f"{member.name} earned {money_earned} coins for beining in {before.channel}.\nYour new balance is {balance}."
             await send_general(msg)
         else:
-            await add_user(id)
+            await db.add_user(id)
             print(f"ID:{id} not found. Created new user with starting balance")
 
 
@@ -156,16 +143,16 @@ async def hello(ctx):
 async def selfGive(ctx, value: int):
     id = ctx.author.id
 
-    if(await is_user(id)):
+    if(await db.is_user(id)):
         if value > 0:
-            money = await add_balance(id, value)
+            money = await db.add_balance(id, value)
             print(f"{value} given to {ctx.author}(id: {ctx.author.id}")
             print(f"{ctx.author}'s new balance is {money}")
             await ctx.send(f"{ctx.author}'s new balance is {money}")
         else:
             await ctx.send(f"{value} is not a valid value. Please try again")
     else :
-        await add_user(id)
+        await db.add_user(id)
         print(f"ID:{id} not found. Created new user with starting balance")
 
 
@@ -173,10 +160,10 @@ async def selfGive(ctx, value: int):
 @bot.command()
 async def balance(ctx):
     if(len(ctx.message.mentions) > 0):
-        balance = await get_balance(ctx.message.mentions[0].id)
+        balance = await db.get_balance(ctx.message.mentions[0].id)
         await ctx.send(f"{ctx.message.mentions[0].name}(id: {ctx.message.mentions[0].id})'s balance is {balance}")
     else:
-        balance = await get_balance(ctx.author.id)
+        balance = await db.get_balance(ctx.author.id)
         await ctx.send(f"{ctx.author}(id: {ctx.author.id})'s balance is {balance}")
 
 
@@ -188,10 +175,10 @@ async def give(ctx, user: discord.Member, value: int):
         recipient = ctx.message.mentions[0].id
         value = int(value)
 
-        balance = await get_balance(sender)
+        balance = await db.get_balance(sender)
         if(balance > value):
-            await add_balance(recipient, value)
-            await add_balance(sender, (0 - value))
+            await db.add_balance(recipient, value)
+            await db.add_balance(sender, (0 - value))
             await ctx.send(f"{ctx.author.name} sent {ctx.message.mentions[0].name} {value}")
         else:
             await ctx.send(f"Your balance of {balance} is smaller then the amount({value}) you want to send")
@@ -214,19 +201,19 @@ async def coinflip(ctx, choice: str, amount: int):
         print("HEADS")
         await ctx.send("Flipped coin, Heads!")
         if(choice == "heads"):
-            await add_balance(ctx.author.id, amount)
+            await db.add_balance(ctx.author.id, amount)
             await ctx.send(f"You Won {amount}!")
         else:
-            await add_balance(ctx.author.id, (0 - amount))
+            await db.add_balance(ctx.author.id, (0 - amount))
             await ctx.send(f"You Lost {amount}!")
     else:
         print("TAILS")
         await ctx.send("Flipped coin, Tails!")
         if(choice == "tails"):
-            await add_balance(ctx.author.id, amount)
+            await db.add_balance(ctx.author.id, amount)
             await ctx.send(f"You Won {amount}!")
         else:
-            await add_balance(ctx.author.id, (0 - amount))
+            await db.add_balance(ctx.author.id, (0 - amount))
             await ctx.send(f"You Lost {amount}!")
 
 @bot.command()
@@ -260,8 +247,8 @@ async def roll(ctx, amount: int, faces: int):
 async def addAll(ctx):
     for guild in bot.guilds:
         for member in guild.members:
-            if(not await is_user(member.id)):
-                await add_user(member.id)
+            if(not await db.is_user(member.id)):
+                await db.add_user(member.id)
                 print(f"{member}(id:{member.id}) was added to user list")
 
 
@@ -327,8 +314,8 @@ async def devildice(ctx, bet: int = commands.parameter(description="The amount t
             loser = player
             winner = next(players)
             await ctx.send(f"{winner.mention} you win {bet}")
-            await add_balance(winner.id, bet)
-            await add_balance(loser.id, (0 - bet))
+            await db.add_balance(winner.id, bet)
+            await db.add_balance(loser.id, (0 - bet))
             return
 
         
@@ -394,61 +381,6 @@ async def roll_error(ctx, error):
         await ctx.send("Please enter the amount of dice followed by the type of dice")
         await ctx.send("$roll {amount} {type} \nie. '$roll 2 6' Will roll a 6 sided dice twice.")
 
-
-
-################
-# DataBase API #
-################
-async def add_balance(id, value: int):
-    balance = await get_balance(id)
-    new_balance = balance + value
-    await set_balance(id, new_balance)
-    return new_balance
-
-
-async def get_balance(id):
-    user = await get_user(id)
-    for result in user:
-        balance = result["money"]
-    return balance
-
-
-async def set_balance(id, balance: int):
-    collection.update_one({"_id": id}, {"$set":{"money": balance}})
-
-
-async def add_user(id):
-    myquery = {"_id": id}
-    if(not await is_user(id)):
-        post = {"_id": id, "money": 1000, "join_time": 0}
-        collection.insert_one(post)
-        return True
-    print(f"{id} is already in database")
-    return False
-
-
-async def is_user(id):
-    query = {"_id": id}
-    if(collection.count_documents(query) == 0):
-        return False
-    return True
-
-
-async def get_user(id):
-    query = {"_id": id}
-    user = collection.find(query)
-    return user
-
-
-async def set_join_time(id, join_time):
-    collection.update_one({"_id": id}, {"$set":{"join_time": join_time}})
-
-
-async def getJoinTime(id):
-    user = await get_user(id)
-    for result in user:
-        join_time = result["join_time"]
-    return join_time
 
 ################
 # Helper Funcs #
