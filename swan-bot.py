@@ -251,7 +251,18 @@ async def coinflip_error(ctx, error):
         await ctx.send("$coinflip {heads || tails} {wager}") 
  
     
-    
+@bot.command()
+async def roll(ctx, amount: int, faces: int):
+    result = []
+    for x in range(amount):
+        result.append(random.randint(1, faces))
+    await ctx.reply(f"You rolled {result} for a total of {sum(result)}")
+
+@roll.error
+async def roll_error(ctx, error):
+    if isinstance(error, commands.BadArgument) or isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Please enter the amount of dice followed by the type of dice")
+        await ctx.send("$roll {amount} {type} \nie. '$roll 2 6' Will roll a 6 sided dice twice.")
 
 @bot.command()
 async def addAll(ctx):
