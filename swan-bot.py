@@ -2,6 +2,8 @@ import os
 import datetime
 import logging
 import random
+import asyncio
+import itertools
 
 import discord
 from discord.ext import commands
@@ -85,6 +87,7 @@ async def on_member_join(member):
     welcome_msg = f"Welcome to the Server {member.name}"
     return_msg = f"Welcome back {member.name}"
     if (not await is_user(id)):
+        await add_user(id)
         print(f"Your Starting Balance is $1000!")
         await send_general(welcome_msg)
     else:
@@ -261,6 +264,67 @@ async def addAll(ctx):
 async def test(ctx):
     print(vars(ctx))
 
+@bot.command()
+async def devildice(ctx, bet):
+    await ctx.send(f"{ctx.author.mention} has started a game of Devil Dice. Enter 'join' or 'j' to join.")
+
+    def check(m):
+        return m.author != ctx.author and m.channel == ctx.channel
+    
+    def turn_check(m):
+        if(m.author != player or m.channel != ctx.channel):
+            print("Wrong other or channel")
+            return False
+        elif(m.author == player and m.content.lower() != "roll"):
+            print("Right author wrong cmd")
+            return False
+        else:
+            print("lets go")
+            return True
+
+
+    try:
+        response = await bot.wait_for('message', check=check, timeout=30.0)
+    except asyncio.TimeoutError:
+        await ctx.send("No one joined in time. Please try again.")
+        return
+    
+    if response.content.lower() not in ("join", "j"):
+        return
+    
+    game_running = True
+    die = 8
+    
+    players = itertools.cycle([ctx.author, response.author])
+    
+    player = next(players)
+
+    while game_running:
+        await ctx.send(f"{player.mention} It is your turn. Type roll to go.")
+
+        try:
+            turn = await bot.wait_for('message', check=turn_check, timeout=30.0)
+        except asyncio.TimeoutError:
+            await ctx.send("Player did not respond in time. Match forfieted.")
+            return
+
+        die = random.randint(1, die)
+        await ctx.send(f"{player.mention} rolled a {die}.")
+        if(die == 1):
+            loser = player
+            winner = next(players)
+            await ctx.send(f"{winner.mention} you win {bet}")
+            await add_balance(winner.id, bet)
+            await add_balance(loser.id, (0 - bet))
+            return
+
+        
+        player = next(players)
+        
+
+            
+    
+
 
 
 ###################
@@ -300,7 +364,7 @@ async def roll_error(ctx, error):
 ################
 # DataBase API #
 ################
-async def add_balance(id, value):
+async def add_balance(id, value: int):
     balance = await get_balance(id)
     new_balance = balance + value
     await set_balance(id, new_balance)
@@ -314,7 +378,7 @@ async def get_balance(id):
     return balance
 
 
-async def set_balance(id, balance):
+async def set_balance(id, balance: int):
     collection.update_one({"_id": id}, {"$set":{"money": balance}})
 
 
