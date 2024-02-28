@@ -146,11 +146,13 @@ async def echo(ctx, *args):
 #Greats user who send command
 @bot.command()
 async def hello(ctx):
-    await ctx.send(f'Hello {ctx.author}!')
+    await ctx.send(f'Hello {ctx.author.mention}!')
 
 
 #Give money to anyone. In future admin use only or helper function only
-@bot.command()
+@bot.command(
+    hidden=True
+)
 async def selfGive(ctx, value: int):
     id = ctx.author.id
 
@@ -197,7 +199,9 @@ async def give(ctx, user: discord.Member, value: int):
         await ctx.send("Must tag user to send money to")
 
 
-@bot.command()
+@bot.command(
+    aliases=['coin', 'flip', 'cf']
+)
 async def coinflip(ctx, choice: str, amount: int):
     print("COIN FLIP")
     coin = [1, 0]
@@ -250,7 +254,9 @@ async def roll(ctx, amount: int, faces: int):
     await ctx.reply(f"You rolled {result} for a total of {sum(result)}")
 
 
-@bot.command()
+@bot.command(
+    hidden=True
+)
 async def addAll(ctx):
     for guild in bot.guilds:
         for member in guild.members:
@@ -264,8 +270,15 @@ async def addAll(ctx):
 async def test(ctx):
     print(vars(ctx))
 
-@bot.command()
-async def devildice(ctx, bet):
+@bot.command(
+    aliases=['dd'],
+    help="$devildice {wager: int}",
+    description="Player 1 rolls a d8. The player following rolls a dice with whatever " +
+    "number the previous player rolls as the amount of faces on their die. This continues " +
+    "untill someone rolls a 1. The player that did not roll the one wins the other players wager",
+    brief="| Gambling Dice Game",
+)
+async def devildice(ctx, bet: int = commands.parameter(description="The amount to wager.")):
     await ctx.send(f"{ctx.author.mention} has started a game of Devil Dice. Enter 'join' or 'j' to join.")
 
     def check(m):
@@ -320,10 +333,32 @@ async def devildice(ctx, bet):
 
         
         player = next(players)
-        
 
-            
-    
+
+
+
+
+@bot.command(
+    aliases=['e'],
+    help="This is help",
+    description="This is description",
+    brief="This is brief",
+    enabled=True,
+    hidden=False
+)
+async def example(ctx):
+    ''' Only shows if description or nothing. Replaces help if nor help in help $example '''
+    await ctx.send("This is the command example")
+
+    return
+
+@example.before_invoke
+async def before_invoke_example(ctx):
+    await ctx.send("This is a before invoke decorator")
+
+@example.after_invoke
+async def after_invoke_example(ctx):
+    await ctx.send("This is a after invoke decorator")
 
 
 
