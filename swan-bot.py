@@ -40,6 +40,34 @@ except Exception as e:
 db = cluster["swanbot"]
 collection = db["money"]
 
+class TheButton(discord.ui.View):
+    def __init__(self, *, timeout = 10, risk):
+        super().__init__(timeout=timeout)
+        self.clicked = 0
+        self.risk = risk
+        self.explosion = 5
+        self.last_clicked = None
+
+    async def on_timeout(self) -> None:
+        self.stop()
+        
+        
+
+    @discord.ui.button(label="BUTTON", style=discord.ButtonStyle.red)
+    async def the_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        if(random.randint(0,100) <= self.explosion):
+            button.disabled = True
+            await interaction.response.edit_message(content="BOOM!", view=self)
+            self.stop()
+        else:
+            self.clicked += 1
+            self.explosion += random.randint(0,5)
+            await interaction.response.edit_message(content=f"Button Clicked {self.clicked} Times")
+            self.last_clicked = interaction.user
+            print(f"Clicked={self.clicked} | explosion={self.explosion} | last_clicked={self.last_clicked.id}")
+
+
 #Event handling
 @bot.event
 async def on_ready():
@@ -192,6 +220,23 @@ async def coinflip(ctx, choice: str, amount: int):
         else:
             await add_balance(ctx.author.id, (0 - amount))
             await ctx.send(f"You Lost {amount}!")
+
+@bot.command()
+async def button(ctx,value):
+    view = TheButton(risk=value)
+    msg = await ctx.send("The Button Has Commenced!", view=view)
+
+    timed_out = await view.wait()
+    print(view.last_clicked)
+    if(timed_out):
+        if(view.last_clicked == None):
+            await ctx.send("The Button Timed Out\nI guess no one loves the Button :(", view=None)
+        else:
+            await ctx.send(f"The Button Timed Out\n{view.last_clicked.mention} was the last person to hit the Button!", view=None)
+    else:
+        await ctx.send(f"The Button Exploded on {view.last_clicked.mention}!\nIt was Clicked {view.clicked} times!", view=None)
+
+    await msg.delete()
 
 
 @coinflip.error
