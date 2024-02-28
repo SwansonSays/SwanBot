@@ -55,8 +55,9 @@ class TheButton(discord.ui.View):
 
     @discord.ui.button(label="BUTTON", style=discord.ButtonStyle.red)
     async def the_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        if(random.randint(0,100) <= self.explosion):
+        roll = random.randint(0,100)
+        if(roll <= self.explosion):
+            self.clicked += 1
             button.disabled = True
             await interaction.response.edit_message(content="BOOM!", view=self)
             self.stop()
@@ -65,13 +66,17 @@ class TheButton(discord.ui.View):
             self.explosion += random.randint(0,5)
             await interaction.response.edit_message(content=f"Button Clicked {self.clicked} Times")
             self.last_clicked = interaction.user
-            print(f"Clicked={self.clicked} | explosion={self.explosion} | last_clicked={self.last_clicked.id}")
+            
+        print(f"Clicked={self.clicked} | explosion={self.explosion} | roll={roll} | last_clicked={self.last_clicked.id}")
 
+##################
+# Event Handling #
+##################        
 
-#Event handling
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
+
 
 #Greats new user and gives them 1000 coins on server join
 @bot.event
@@ -84,6 +89,7 @@ async def on_member_join(member):
         await send_general(welcome_msg)
     else:
         await send_general(return_msg)
+
 
 #Gives coins for every 30 minutes user is in voice call
 @bot.event
@@ -119,9 +125,11 @@ async def on_voice_state_update(member, before, after):
             print(f"ID:{id} not found. Created new user with starting balance")
 
 
+####################
+# Command Handling #
+####################      
 
-#Command handling
-        
+
 #echo response
 @bot.command()
 async def echo(ctx, *args):
@@ -131,10 +139,12 @@ async def echo(ctx, *args):
     else:
         await ctx.send("Echo must be followed by at least one character.")
 
+
 #Greats user who send command
 @bot.command()
 async def hello(ctx):
     await ctx.send(f'Hello {ctx.author}!')
+
 
 #Give money to anyone. In future admin use only or helper function only
 @bot.command()
@@ -153,11 +163,6 @@ async def selfGive(ctx, value: int):
         await add_user(id)
         print(f"ID:{id} not found. Created new user with starting balance")
 
-@selfGive.error
-async def selfGive_error(ctx, error):
-    if isinstance(error, commands.BadArgument):
-        await ctx.send("Command Param must be a integer.")
-
 
 #Sends balance of message author or tagged user
 @bot.command()
@@ -168,6 +173,7 @@ async def balance(ctx):
     else:
         balance = await get_balance(ctx.author.id)
         await ctx.send(f"{ctx.author}(id: {ctx.author.id})'s balance is {balance}")
+
 
 #send user value
 @bot.command()
@@ -186,11 +192,6 @@ async def give(ctx, user: discord.Member, value: int):
             await ctx.send(f"Your balance of {balance} is smaller then the amount({value}) you want to send")
     else:
         await ctx.send("Must tag user to send money to")
-
-@give.error
-async def give_error(ctx, error):
-    if isinstance(error, commands.BadArgument):
-        await ctx.send("$give {@user} {value}")
 
 
 @bot.command()
@@ -227,7 +228,6 @@ async def button(ctx,value):
     msg = await ctx.send("The Button Has Commenced!", view=view)
 
     timed_out = await view.wait()
-    print(view.last_clicked)
     if(timed_out):
         if(view.last_clicked == None):
             await ctx.send("The Button Timed Out\nI guess no one loves the Button :(", view=None)
@@ -239,18 +239,6 @@ async def button(ctx,value):
     await msg.delete()
 
 
-@coinflip.error
-async def coinflip_error(ctx, error):
-    print("ERR")
-    print(error)
-    if isinstance(error, commands.BadArgument):
-        await ctx.send("Please select heads or tails and your amount to wager")
-        await ctx.send("$coinflip {heads || tails} {wager}")
-    if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Please select heads or tails and your amount to wager")
-        await ctx.send("$coinflip {heads || tails} {wager}") 
- 
-    
 @bot.command()
 async def roll(ctx, amount: int, faces: int):
     result = []
@@ -258,11 +246,6 @@ async def roll(ctx, amount: int, faces: int):
         result.append(random.randint(1, faces))
     await ctx.reply(f"You rolled {result} for a total of {sum(result)}")
 
-@roll.error
-async def roll_error(ctx, error):
-    if isinstance(error, commands.BadArgument) or isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Please enter the amount of dice followed by the type of dice")
-        await ctx.send("$roll {amount} {type} \nie. '$roll 2 6' Will roll a 6 sided dice twice.")
 
 @bot.command()
 async def addAll(ctx):
@@ -279,19 +262,57 @@ async def test(ctx):
     print(vars(ctx))
 
 
-#DB API
 
+###################
+# Error Handleing #
+###################
+@selfGive.error
+async def selfGive_error(ctx, error):
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("Command Param must be a integer.")
+
+
+@give.error
+async def give_error(ctx, error):
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("$give {@user} {value}")
+
+@coinflip.error
+async def coinflip_error(ctx, error):
+    print("ERR")
+    print(error)
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("Please select heads or tails and your amount to wager")
+        await ctx.send("$coinflip {heads || tails} {wager}")
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Please select heads or tails and your amount to wager")
+        await ctx.send("$coinflip {heads || tails} {wager}") 
+
+
+@roll.error
+async def roll_error(ctx, error):
+    if isinstance(error, commands.BadArgument) or isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Please enter the amount of dice followed by the type of dice")
+        await ctx.send("$roll {amount} {type} \nie. '$roll 2 6' Will roll a 6 sided dice twice.")
+
+
+
+################
+# DataBase API #
+################
 async def add_balance(id, value):
     balance = await get_balance(id)
     new_balance = balance + value
     await set_balance(id, new_balance)
     return new_balance
 
+
 async def get_balance(id):
     user = await get_user(id)
     for result in user:
         balance = result["money"]
     return balance
+
 
 async def set_balance(id, balance):
     collection.update_one({"_id": id}, {"$set":{"money": balance}})
@@ -306,19 +327,23 @@ async def add_user(id):
     print(f"{id} is already in database")
     return False
 
+
 async def is_user(id):
     query = {"_id": id}
     if(collection.count_documents(query) == 0):
         return False
     return True
 
+
 async def get_user(id):
     query = {"_id": id}
     user = collection.find(query)
     return user
 
+
 async def set_join_time(id, join_time):
     collection.update_one({"_id": id}, {"$set":{"join_time": join_time}})
+
 
 async def getJoinTime(id):
     user = await get_user(id)
@@ -326,9 +351,10 @@ async def getJoinTime(id):
         join_time = result["join_time"]
     return join_time
 
+################
+# Helper Funcs #
+################
 
-
-# Helper Funcs
 async def send_general(msg):
     channel = bot.get_channel(784337067307302914) #hard coded general channel
     await channel.send(msg)
