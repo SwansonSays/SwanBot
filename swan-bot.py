@@ -21,7 +21,6 @@ def run():
 
     bot = commands.Bot(command_prefix='$', intents=intents)
 
-
     class TheButton(discord.ui.View):
         def __init__(self, *, timeout = 10, wager):
             super().__init__(timeout=timeout)
@@ -144,11 +143,15 @@ def run():
         await ctx.send(f'Hello {ctx.author.mention}!')
 
 
-    #Give money to anyone. In future admin use only or helper function only
     @bot.command(
         hidden=True
     )
     async def selfGive(ctx, value: int):
+        '''
+        Admin Command to increase balance for testing purposes
+        Args:
+            value (int): Amount of money to increase balance by
+        '''
         id = ctx.author.id
 
         if(await db.is_user(id)):
@@ -164,7 +167,6 @@ def run():
             print(f"ID:{id} not found. Created new user with starting balance")
 
 
-    #Sends balance of message author or tagged user
     @bot.command()
     async def balance(ctx):
         '''
@@ -178,7 +180,6 @@ def run():
             await ctx.send(f"{ctx.author}(id: {ctx.author.id})'s balance is {balance}")
 
 
-    #send user value
     @bot.command()
     async def give(ctx, user: discord.Member, value: int):
         '''
@@ -288,9 +289,11 @@ def run():
                     print(f"{member}(id:{member.id}) was added to user list")
 
 
-    #prints shape of context to console
     @bot.command()
     async def test(ctx):
+        '''
+        Print shape of ctx for testing purposes
+        '''
         print(vars(ctx))
 
 
@@ -404,6 +407,7 @@ def run():
         if isinstance(error, commands.BadArgument):
             await ctx.send("$give {@user} {value}")
 
+
     @coinflip.error
     async def coinflip_error(ctx, error):
         print("ERR")
@@ -459,8 +463,6 @@ def run():
         return await db.add_balance(id, wager * multiplier)
 
 
-
-    #bot.run(token=TOKEN, log_handler=handler, log_level=logging.DEBUG)
     bot.run(token=settings.TOKEN, root_logger=True)
 
 if __name__ == "__main__":
