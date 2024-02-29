@@ -37,16 +37,23 @@ def run():
 
         @discord.ui.button(label="BUTTON", style=discord.ButtonStyle.red)
         async def the_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+            if not await check_balance(interaction.user.id, self.wager):
+                await interaction.response.send_message("You do not have the balance required to wager that amount.")
+                return
+            await collect_wager(interaction.user.id, self.wager)
+            
             roll = random.randint(0,100)
             if(roll <= self.explosion):
                 self.clicked += 1
                 button.disabled = True
                 await interaction.response.edit_message(content="BOOM!", view=self)
+                await pay_winner(self.last_clicked.id, self.wager, self.clicked)
                 self.stop()
             else:
                 self.clicked += 1
                 self.explosion += random.randint(0,5)
-                await interaction.response.edit_message(content=f"Button Clicked {self.clicked} Times")
+                await interaction.response.edit_message(content=f"Button Clicked {self.clicked} Times. Pot: {self.wager * self.clicked}. Click costs {self.wager}.")
                 self.last_clicked = interaction.user
                 
             print(f"Clicked={self.clicked} | explosion={self.explosion} | roll={roll} | last_clicked={self.last_clicked.id}")
@@ -54,14 +61,12 @@ def run():
     ##################
     # Event Handling #
     ##################        
-
     @bot.event
     async def on_ready():
         logger.info(f"User: {bot.user} (ID: {bot.user.id})")
         print(f'We have logged in as {bot.user}')
 
 
-    #Greats new user and gives them 1000 coins on server join
     @bot.event
     async def on_member_join(member):
         '''
@@ -78,7 +83,6 @@ def run():
             await send_general(return_msg)
 
 
-    #Gives coins for every 30 minutes user is in voice call
     @bot.event
     async def on_voice_state_update(member, before, after):
         '''
@@ -118,9 +122,6 @@ def run():
     ####################
     # Command Handling #
     ####################      
-
-
-    #echo response
     @bot.command()
     async def echo(ctx, *args):
         '''
@@ -216,6 +217,7 @@ def run():
         id = ctx.author.id
         choice = choice.lower()
 
+        # Returns if invalid choice or wager
         if(((choice != "heads") and (choice != "tails")) or (wager < 1)):
             await ctx.reply("*Please select heads or tails and an amount greater than 0 to wager")
             await ctx.reply("*$coinflip {heads | tails} {wager}")
@@ -236,8 +238,17 @@ def run():
 
 
     @bot.command()
-    async def button(ctx,value):
-        view = TheButton(wager=value)
+    async def button(ctx, wager: int):
+        '''
+        Button gambling game. Work in Progress
+        Args:
+            wager (int): Amount to wager
+        '''
+        if not await check_balance(ctx.author.id, wager):
+            await ctx.reply("You do not have the balance required to wager that amount.")
+            return
+
+        view = TheButton(wager=wager)
         msg = await ctx.send("The Button Has Commenced!", view=view)
 
         timed_out = await view.wait()
@@ -281,6 +292,7 @@ def run():
     @bot.command()
     async def test(ctx):
         print(vars(ctx))
+
 
     @bot.command(
         aliases=['dd'],
@@ -366,9 +378,11 @@ def run():
 
         return
 
+
     @example.before_invoke
     async def before_invoke_example(ctx):
         await ctx.send("This is a before invoke decorator")
+
 
     @example.after_invoke
     async def after_invoke_example(ctx):
@@ -409,7 +423,6 @@ def run():
     ################
     # Helper Funcs #
     ################
-
     async def send_general(msg):
         channel = bot.get_channel(784337067307302914) #hard coded general channel
         await channel.send(msg)
@@ -423,7 +436,7 @@ def run():
         Returns:
             bool: Whether user has enough balance or not
         '''
-        return await db.get_balance(id) > wager
+        return (await db.get_balance(id) > wager)
     
     async def collect_wager(id, wager: int) -> None:
         '''

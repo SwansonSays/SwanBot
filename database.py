@@ -23,14 +23,14 @@ class DataBase():
         db = cluster["swanbot"]
         self.collection = db["money"]
 
-    async def add_balance(self, id, value: int):
+    async def add_balance(self, id, value: int) -> int:
         balance = await self.get_balance(id)
         new_balance = balance + value
         await self.set_balance(id, new_balance)
         return new_balance
 
 
-    async def get_balance(self, id):
+    async def get_balance(self, id) -> int:
         user = await self.get_user(id)
         for result in user:
             balance = result["money"]
@@ -41,7 +41,7 @@ class DataBase():
         self.collection.update_one({"_id": id}, {"$set":{"money": balance}})
 
 
-    async def add_user(self, id):
+    async def add_user(self, id) -> bool:
         myquery = {"_id": id}
         if(not await self.is_user(id)):
             post = {"_id": id, "money": 1000, "join_time": 0}
@@ -51,7 +51,7 @@ class DataBase():
         return False
 
 
-    async def is_user(self, id):
+    async def is_user(self, id) -> bool:
         query = {"_id": id}
         if(self.collection.count_documents(query) == 0):
             return False
