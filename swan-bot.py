@@ -369,6 +369,32 @@ def run():
 
 
     @bot.command(
+        aliases=['russian-roulette', 'rr'],
+        enabled=False
+    )
+    async def russianroulette(ctx, wager: int):
+        if not await check_balance(ctx.author.id, wager):
+            await ctx.reply("You do not have the balance required to wager that amount.")
+            return
+        
+        await ctx.send(f"{ctx.author.mention} has started a game of Russian Roulette. Enter 'join' or 'j' to join.")
+
+        async def check(m):
+            return m.author != ctx.author and m.channel == ctx.channel and await check_balance(m.author, wager)
+
+        try:
+            response = await bot.wait_for('message', check=check, timeout=30.0)
+        except asyncio.TimeoutError:
+            await ctx.send("No one joined in time. Please try again.")
+            return
+        
+        if response.content.lower() not in ("join", "j"):
+            return
+        
+
+        
+        
+    @bot.command(
         aliases=['e'],
         help="This is help",
         description="This is description",
