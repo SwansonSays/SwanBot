@@ -64,6 +64,7 @@ def run():
     async def on_ready():
         logger.info(f"User: {bot.user} (ID: {bot.user.id})")
         print(f'We have logged in as {bot.user}')
+        await send_general("Ready to rock and roll!")
 
 
     @bot.event
